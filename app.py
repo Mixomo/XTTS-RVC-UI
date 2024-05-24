@@ -2,7 +2,7 @@ import torch
 from TTS.api import TTS
 import gradio as gr
 from rvc import Config, load_hubert, get_vc, rvc_infer
-import gc, os, sys, argparse, requests
+import gc, os, sys, argparse, requests, logging, webbrowser
 import gdown
 from pathlib import Path
 
@@ -12,19 +12,29 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument('-s', '--silent', action=argparse.BooleanOptionalAction, default=False)
+parser.add_argument('--quiet', action='store_true', help='Suppress log output')
+
 args = parser.parse_args()
 
-if args.silent: 
+if args.silent:
     print('Activando modo silencioso.')
     sys.stdout = open(os.devnull, 'w')
 
+if args.quiet:
+    logging.basicConfig(level=logging.ERROR)
+else:
+    logging.basicConfig(level=logging.INFO)
+
+logger = logging.getLogger(__name__)
+
 def download_models():
+    logger.info('Descargando archivos de modelos...')
     # Descarga de archivos RVC
     rvc_files = ['hubert_base.pt', 'rmvpe.pt']
 
     for file in rvc_files: 
         if not os.path.isfile(f'./models/{file}'):
-            print(f'Descargando {file}')
+            logger.info(f'Descargando {file}')
             r = requests.get(f'https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/{file}')
             with open(f'./models/{file}', 'wb') as f:
                 f.write(r.content)
@@ -53,7 +63,7 @@ def download_models():
 download_models()
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-print("Dispositivo: " + device)
+logger.info("Dispositivo: " + device)
 
 config = Config(device, device != 'cpu')
 hubert_model = load_hubert(device, config.is_half, "./models/hubert_base.pt")
@@ -65,12 +75,12 @@ default_lang = "es"
 def get_rvc_voices():
     global voices 
     voices = os.listdir("./voices")
-    print('Lista de voces y RVC actualizada!')
+    logger.info('Lista de voces y RVC actualizada!')
     return gr.update(choices=voices, value=voices[0] if len(voices) > 0 else '')
 
 def infer_voice(voice, pitch_change):
     modelname = os.path.splitext(voice)[0]
-    print("Usando modelo RVC: " + modelname)
+    logger.info("Usando modelo RVC: " + modelname)
     rvc_model_path = "./rvcs/Pedro_RVC.pth"
     rvc_index_path = ""
 
@@ -127,9 +137,12 @@ with gr.Blocks() as interface:
     infer_button.click(fn=infer_voice, inputs=[voice_dropdown, pitch_slider], outputs=audio_output)
     audio_recorder.change(fn=save_audio, inputs=audio_recorder, outputs=voice_dropdown)
 
-interface.launch(server_name="0.0.0.0", server_port=5000, quiet=True, share=True)
+app = interface.launch(server_name="0.0.0.0", server_port=5000, quiet=True, share=True)
 
-# delete later
+# Obtén la URL pública y ábrela en el navegador
+if app.share_url:
+    webbrowser.open(app.share_url)
+    print(f"Interfaz lanzada en: {app.share_url}")
 
 class RVC_Data:
     def __init__(self):
@@ -142,7 +155,7 @@ class RVC_Data:
 
     def load_cpt(self, modelname, rvc_model_path):
         if self.current_model != modelname:
-            print("Cargando nuevo modelo")
+            logger.info("Cargando nuevo modelo")
             del self.cpt, self.version, self.net_g, self.tgt_sr, self.vc
             self.cpt, self.version, self.net_g, self.tgt_sr, self.vc = get_vc(device, config.is_half, config, rvc_model_path)
             self.current_model = modelname
