@@ -52,7 +52,7 @@ def download_models():
     gdown.download_folder(f"https://drive.google.com/drive/folders/{folder_id}", output=destination_path, quiet=False, use_cookies=False)
 
     # Descarga de audios desde Google Drive
-    voices_folder_url = "https://drive.google.com/drive/folders/1wxFqSxYqHlBCnEG7O7_NDUtxBgfhdRTV?usp=drive_link"
+    voices_folder_url = "https://drive.google.com/drive/folders/1wxFqSxYqHlBCnEG7O7_NDUtxBgfhdRTV?usp=sharing"
     voices_folder_id = voices_folder_url.split('/')[-1]
     voices_destination_path = "./voices"
     os.makedirs(voices_destination_path, exist_ok=True)
