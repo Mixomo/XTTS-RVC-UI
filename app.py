@@ -60,7 +60,7 @@ hubert_model = load_hubert(device, config.is_half, "./models/hubert_base.pt")
 tts = TTS(model_path="./models/xtts", config_path='./models/xtts/config.json').to(device)
 voices = []
 rvcs = []
-langs = ["en", "es", "fr", "de", "it", "pt", "pl", "tr", "ru", "nl", "cs", "ar", "zh-cn", "hu", "ko", "ja", "hi"]
+default_lang = "es"
 
 def get_rvc_voices():
     global voices 
@@ -68,7 +68,7 @@ def get_rvc_voices():
     print('Lista de voces y RVC actualizada!')
     return gr.update(choices=voices, value=voices[0] if len(voices) > 0 else '')
 
-def infer_voice(voice, pitch_change, index_rate):
+def infer_voice(voice, pitch_change):
     modelname = os.path.splitext(voice)[0]
     print("Usando modelo RVC: " + modelname)
     rvc_model_path = "./rvcs/Pedro_RVC.pth"
@@ -78,8 +78,8 @@ def infer_voice(voice, pitch_change, index_rate):
     
     rvc_infer(
         index_path=rvc_index_path, 
-        index_rate=index_rate, 
-        input_path="./output.wav", 
+        index_rate=0.5,  # Fijar tasa de índice a un valor por defecto
+        input_path=voice, 
         output_path="./outputrvc.wav", 
         pitch_change=pitch_change, 
         f0_method="rmvpe", 
@@ -96,28 +96,38 @@ def infer_voice(voice, pitch_change, index_rate):
     )
     return "./outputrvc.wav"
 
+audio_counter = 1
+
+def save_audio(audio):
+    global audio_counter
+    filename = f"./voices/audio_personalizado_nro_{audio_counter:02d}.wav"
+    audio_counter += 1
+    with open(filename, "wb") as f:
+        f.write(audio)
+    return filename
+
 # Interfaz de Gradio
 with gr.Blocks() as interface:
-    gr.Markdown("## Conversión de voz con XTTS y RVC")
+    gr.Markdown("# Pedro Labattaglia TTS")
+    gr.Markdown("### Elige un audio de referencia que influye en la prosa y emocionalidad del habla generada")
     
     with gr.Row():
         with gr.Column():
-            voice_dropdown = gr.Dropdown(label="Selecciona una voz", choices=voices, value=voices[0] if len(voices) > 0 else '')
-            refresh_button = gr.Button("Actualizar listas")
-            refresh_button.click(fn=get_rvc_voices, outputs=voice_dropdown)
+            voice_dropdown = gr.Dropdown(label="Selecciona un audio de referencia de Pedro", choices=voices, value=voices[0] if len(voices) > 0 else '')
             
             pitch_slider = gr.Slider(minimum=-12, maximum=12, step=1, label="Cambio de tono", value=0)
-            index_rate_slider = gr.Slider(minimum=0, maximum=1, step=0.01, label="Tasa de índice", value=0.5)
             
-            audio_input = gr.Audio(source="upload", type="filepath", label="Sube tu archivo de audio")
+            audio_input = gr.Audio(source="upload", type="filepath", label="Sube tu propio audio de referencia (recomendado hasta 30 segundos)")
+            audio_recorder = gr.Audio(source="microphone", type="filepath", label="Graba tu propio audio de referencia")
 
         with gr.Column():
             audio_output = gr.Audio(label="Audio convertido", elem_id="audio_output", type="filepath")
 
     infer_button = gr.Button("Convertir voz")
-    infer_button.click(fn=infer_voice, inputs=[voice_dropdown, pitch_slider, index_rate_slider], outputs=audio_output)
+    infer_button.click(fn=infer_voice, inputs=[voice_dropdown, pitch_slider], outputs=audio_output)
+    audio_recorder.change(fn=save_audio, inputs=audio_recorder, outputs=voice_dropdown)
 
-interface.launch(server_name="0.0.0.0", server_port=5000, quiet=True)
+interface.launch(server_name="0.0.0.0", server_port=5000, quiet=True, share=True)
 
 # delete later
 
