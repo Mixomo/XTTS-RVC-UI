@@ -33,32 +33,32 @@ def download_models():
     rvc_files = ['hubert_base.pt', 'rmvpe.pt']
 
     for file in rvc_files: 
-        if not os.path.isfile(f'./models/{file}'):
+        if not os.path.isfile(f'/content/XTTS-RVC-UI/models/{file}'):
             logger.info(f'Descargando {file}')
             r = requests.get(f'https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/{file}')
-            with open(f'./models/{file}', 'wb') as f:
+            with open(f'/content/XTTS-RVC-UI/models/{file}', 'wb') as f:
                 f.write(r.content)
 
     # Descarga de un modelo RVC específico desde Google Drive
     rvc_model_url = "https://drive.google.com/uc?id=10SXLxWd2_wR3N4pJEENSsD3mbuAY__GR"
-    rvc_model_destination = "./rvcs/Pedro_RVC.pth"
+    rvc_model_destination = "/content/XTTS-RVC-UI/rvcs/Pedro_RVC.pth"
     gdown.download(rvc_model_url, rvc_model_destination, quiet=False)
 
     # Descarga de archivos XTTS desde Google Drive
     folder_url = "https://drive.google.com/drive/folders/1h-7Peta7OU4q3egdgpZI7jNh0QrWxNhw?usp=sharing"
     folder_id = folder_url.split('/')[-1]
-    destination_path = "./models/xtts"
+    destination_path = "/content/XTTS-RVC-UI/models/xtts"
     os.makedirs(destination_path, exist_ok=True)
-    gdown.download_folder(f"https://drive.google.com/drive/folders/{folder_id}", output=destination_path, quiet=False, use_cookies=False)
+    gdown.download_folder(url=f"https://drive.google.com/drive/folders/{folder_id}", output=destination_path, quiet=False, use_cookies=False)
 
     # Descarga de audios desde Google Drive
     voices_folder_url = "https://drive.google.com/drive/folders/1wxFqSxYqHlBCnEG7O7_NDUtxBgfhdRTV?usp=sharing"
     voices_folder_id = voices_folder_url.split('/')[-1]
-    voices_destination_path = "./voices"
+    voices_destination_path = "/content/XTTS-RVC-UI/voices"
     os.makedirs(voices_destination_path, exist_ok=True)
-    gdown.download_folder(f"https://drive.google.com/drive/folders/{voices_folder_id}", output=voices_destination_path, quiet=False, use_cookies=False)
+    gdown.download_folder(url=f"https://drive.google.com/drive/folders/{voices_folder_id}", output=voices_destination_path, quiet=False, use_cookies=False)
 
-[Path(_dir).mkdir(parents=True, exist_ok=True) for _dir in ['./models/xtts', './voices', './rvcs']]
+[Path(_dir).mkdir(parents=True, exist_ok=True) for _dir in ['/content/XTTS-RVC-UI/models/xtts', '/content/XTTS-RVC-UI/voices', '/content/XTTS-RVC-UI/rvcs']]
 
 download_models()
 
@@ -66,22 +66,22 @@ device = "cuda:0" if torch.cuda.is_available() else "cpu"
 logger.info("Dispositivo: " + device)
 
 config = Config(device, device != 'cpu')
-hubert_model = load_hubert(device, config.is_half, "./models/hubert_base.pt")
-tts = TTS(model_path="./models/xtts", config_path='./models/xtts/config.json').to(device)
+hubert_model = load_hubert(device, config.is_half, "/content/XTTS-RVC-UI/models/hubert_base.pt")
+tts = TTS(model_path="/content/XTTS-RVC-UI/models/xtts", config_path='/content/XTTS-RVC-UI/models/xtts/config.json').to(device)
 voices = []
 rvcs = []
 default_lang = "es"
 
 def get_rvc_voices():
     global voices 
-    voices = os.listdir("./voices")
+    voices = os.listdir("/content/XTTS-RVC-UI/voices")
     logger.info('Lista de voces y RVC actualizada!')
     return gr.update(choices=voices, value=voices[0] if len(voices) > 0 else '')
 
 def infer_voice(voice, pitch_change):
     modelname = os.path.splitext(voice)[0]
     logger.info("Usando modelo RVC: " + modelname)
-    rvc_model_path = "./rvcs/Pedro_RVC.pth"
+    rvc_model_path = "/content/XTTS-RVC-UI/rvcs/Pedro_RVC.pth"
     rvc_index_path = ""
 
     rvc_data.load_cpt(modelname, rvc_model_path)
@@ -90,7 +90,7 @@ def infer_voice(voice, pitch_change):
         index_path=rvc_index_path, 
         index_rate=0.5,  # Fijar tasa de índice a un valor por defecto
         input_path=voice, 
-        output_path="./outputrvc.wav", 
+        output_path="/content/XTTS-RVC-UI/outputrvc.wav", 
         pitch_change=pitch_change, 
         f0_method="rmvpe", 
         cpt=rvc_data.cpt, 
@@ -104,13 +104,13 @@ def infer_voice(voice, pitch_change):
         vc=rvc_data.vc, 
         hubert_model=hubert_model
     )
-    return "./outputrvc.wav"
+    return "/content/XTTS-RVC-UI/outputrvc.wav"
 
 audio_counter = 1
 
 def save_audio(audio):
     global audio_counter
-    filename = f"./voices/audio_personalizado_nro_{audio_counter:02d}.wav"
+    filename = f"/content/XTTS-RVC-UI/voices/audio_personalizado_nro_{audio_counter:02d}.wav"
     audio_counter += 1
     with open(filename, "wb") as f:
         f.write(audio)
