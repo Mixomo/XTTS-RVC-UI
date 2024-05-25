@@ -3,7 +3,6 @@ from TTS.api import TTS
 import gradio as gr
 from rvc import Config, load_hubert, get_vc, rvc_infer
 import gc, os, sys, argparse, requests, logging, webbrowser
-import gdown
 from pathlib import Path
 
 parser = argparse.ArgumentParser(
@@ -12,69 +11,48 @@ parser = argparse.ArgumentParser(
 )
 
 parser.add_argument('-s', '--silent', action=argparse.BooleanOptionalAction, default=False)
-parser.add_argument('--quiet', action='store_true', help='Suppress log output')
-
 args = parser.parse_args()
 
 if args.silent:
     print('Activando modo silencioso.')
     sys.stdout = open(os.devnull, 'w')
 
-if args.quiet:
-    logging.basicConfig(level=logging.ERROR)
-else:
-    logging.basicConfig(level=logging.INFO)
-
-logger = logging.getLogger(__name__)
-
 def download_models():
-    logger.info('Descargando archivos de modelos...')
-    # Descarga de archivos RVC
     rvc_files = ['hubert_base.pt', 'rmvpe.pt']
 
-    for file in rvc_files: 
-        if not os.path.isfile(f'/content/XTTS-RVC-UI/models/{file}'):
-            logger.info(f'Descargando {file}')
+    for file in rvc_files:
+        if not os.path.isfile(f'./models/{file}'):
+            print(f'Descargando {file}')
             r = requests.get(f'https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/{file}')
-            with open(f'/content/XTTS-RVC-UI/models/{file}', 'wb') as f:
+            with open(f'./models/{file}', 'wb') as f:
                 f.write(r.content)
 
-    # Descarga de un modelo RVC específico desde Google Drive
-    rvc_model_url = "https://drive.google.com/uc?id=10SXLxWd2_wR3N4pJEENSsD3mbuAY__GR"
-    rvc_model_destination = "/content/XTTS-RVC-UI/rvcs/Pedro_RVC.pth"
-    gdown.download(rvc_model_url, rvc_model_destination, quiet=False)
+    xtts_files = ['vocab.json', 'config.json', 'dvae.pth', 'mel_stats.pth', 'model.pth']
 
-    # Descarga de archivos XTTS desde Google Drive
-    folder_url = "https://drive.google.com/drive/folders/1h-7Peta7OU4q3egdgpZI7jNh0QrWxNhw?usp=sharing"
-    folder_id = folder_url.split('/')[-1]
-    destination_path = "/content/XTTS-RVC-UI/models/xtts"
-    os.makedirs(destination_path, exist_ok=True)
-    gdown.download_folder(url=f"https://drive.google.com/drive/folders/{folder_id}", output=destination_path, quiet=False, use_cookies=False)
+    for file in xtts_files:
+        if not os.path.isfile(f'./models/xtts/{file}'):
+            print(f'Descargando {file}')
+            r = requests.get(f'https://huggingface.co/coqui/XTTS-v2/resolve/v2.0.2/{file}')
+            with open(f'./models/xtts/{file}', 'wb') as f:
+                f.write(r.content)
 
-    # Descarga de audios desde Google Drive
-    voices_folder_url = "https://drive.google.com/drive/folders/1wxFqSxYqHlBCnEG7O7_NDUtxBgfhdRTV?usp=sharing"
-    voices_folder_id = voices_folder_url.split('/')[-1]
-    voices_destination_path = "/content/XTTS-RVC-UI/voices"
-    os.makedirs(voices_destination_path, exist_ok=True)
-    gdown.download_folder(url=f"https://drive.google.com/drive/folders/{voices_folder_id}", output=voices_destination_path, quiet=False, use_cookies=False)
-
-[Path(_dir).mkdir(parents=True, exist_ok=True) for _dir in ['/content/XTTS-RVC-UI/models/xtts', '/content/XTTS-RVC-UI/voices', '/content/XTTS-RVC-UI/rvcs']]
+[Path(_dir).mkdir(parents=True, exist_ok=True) for _dir in ['./models/xtts', './voices', './rvcs']]
 
 download_models()
 
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
-logger.info("Dispositivo: " + device)
+print("Dispositivo: " + device)
 
 config = Config(device, device != 'cpu')
-hubert_model = load_hubert(device, config.is_half, "/content/XTTS-RVC-UI/models/hubert_base.pt")
-tts = TTS(model_path="/content/XTTS-RVC-UI/models/xtts", config_path='/content/XTTS-RVC-UI/models/xtts/config.json').to(device)
+hubert_model = load_hubert(device, config.is_half, "./models/hubert_base.pt")
+tts = TTS(model_path="./models/xtts/model.pth", config_path='./models/xtts/config.json').to(device)
 voices = []
 rvcs = []
 default_lang = "es"
 
 def get_rvc_voices():
     global voices 
-    voices = os.listdir("/content/XTTS-RVC-UI/voices")
+    voices = os.listdir("./voices")
     logger.info('Lista de voces y RVC actualizada!')
     return gr.update(choices=voices, value=voices[0] if len(voices) > 0 else '')
 
@@ -117,32 +95,34 @@ def save_audio(audio):
     return filename
 
 # Interfaz de Gradio
-with gr.Blocks() as interface:
-    gr.Markdown("# Pedro Labattaglia TTS")
-    gr.Markdown("### Elige un audio de referencia que influye en la prosa y emocionalidad del habla generada")
-    
-    with gr.Row():
-        with gr.Column():
-            voice_dropdown = gr.Dropdown(label="Selecciona un audio de referencia de Pedro", choices=voices, value=voices[0] if len(voices) > 0 else '')
-            
-            pitch_slider = gr.Slider(minimum=-12, maximum=12, step=1, label="Cambio de tono", value=0)
-            
-            audio_input = gr.Audio(source="upload", type="filepath", label="Sube tu propio audio de referencia (recomendado hasta 30 segundos)")
-            audio_recorder = gr.Audio(source="microphone", type="filepath", label="Graba tu propio audio de referencia")
+def main():
+    get_rvc_voices()
+    with gr.Blocks() as interface:
+        gr.Markdown("# Pedro Labattaglia TTS")
+        gr.Markdown("### Elige un audio de referencia que influye en la prosa y emocionalidad del habla generada")
+        
+        with gr.Row():
+            with gr.Column():
+                voice_dropdown = gr.Dropdown(label="Selecciona un audio de referencia de Pedro", choices=voices, value=voices[0] if len(voices) > 0 else '')
+                
+                pitch_slider = gr.Slider(minimum=-12, maximum=12, step=1, label="Cambio de tono", value=0)
+                
+                audio_input = gr.Audio(source="upload", type="filepath", label="Sube tu propio audio de referencia (recomendado hasta 30 segundos)")
+                audio_recorder = gr.Audio(source="microphone", type="filepath", label="Graba tu propio audio de referencia")
 
-        with gr.Column():
-            audio_output = gr.Audio(label="Audio convertido", elem_id="audio_output", type="filepath")
+            with gr.Column():
+                audio_output = gr.Audio(label="Audio convertido", elem_id="audio_output", type="filepath")
 
-    infer_button = gr.Button("Convertir voz")
-    infer_button.click(fn=infer_voice, inputs=[voice_dropdown, pitch_slider], outputs=audio_output)
-    audio_recorder.change(fn=save_audio, inputs=audio_recorder, outputs=voice_dropdown)
+        infer_button = gr.Button("Convertir voz")
+        infer_button.click(fn=infer_voice, inputs=[voice_dropdown, pitch_slider], outputs=audio_output)
+        audio_recorder.change(fn=save_audio, inputs=audio_recorder, outputs=voice_dropdown)
 
-app = interface.launch(server_name="0.0.0.0", server_port=5000, quiet=True, share=True)
+    app = interface.launch(server_name="0.0.0.0", server_port=5000, quiet=True, share=True)
 
-# Obtén la URL pública y ábrela en el navegador
-if app.share_url:
-    webbrowser.open(app.share_url)
-    print(f"Interfaz lanzada en: {app.share_url}")
+    # Obtén la URL pública y ábrela en el navegador
+    if app.share_url:
+        webbrowser.open(app.share_url)
+        print(f"Interfaz lanzada en: {app.share_url}")
 
 class RVC_Data:
     def __init__(self):
